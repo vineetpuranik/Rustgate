@@ -11,14 +11,17 @@ use redis::RedisResult;
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::error::Error;
-use tower_http::{cors::CorsLayer, services::ServeDir};
+use tower_http::{cors::CorsLayer, services::ServeDir, trace::TraceLayer};
 
 pub mod domain;
 pub mod routes;
 pub mod services;
 pub mod utils;
 
-use crate::routes::*;
+use crate::{
+    routes::*,
+    utils::{make_span_with_request_id, on_request, on_response},
+};
 use app_state::AppState;
 
 //This struct encapsulates our application related logic
@@ -54,18 +57,26 @@ impl Application {
             .route("/verify-2fa", post(verify_2fa))
             .route("/verify-token", post(verify_token))
             .with_state(app_state)
-            .layer(cors); // Add CORS config to our Axum router
+            .layer(cors) // Add CORS config to our Axum router
+            .layer(
+                // Add a TraceLayer for HTTP request to enable detailed tracing.
+                // This layer will create spans for each request using the make_span_with_request_id function
+                // and log events at the start and end of each request using on_request and on_response functions.
+                TraceLayer::new_for_http()
+                    .make_span_with(make_span_with_request_id)
+                    .on_request(on_request)
+                    .on_response(on_response),
+            );
 
         let listener = tokio::net::TcpListener::bind(address).await?;
         let address = listener.local_addr()?.to_string();
         let server = axum::serve(listener, router);
-
         // Create a new application instance and return it
         Ok(Application { server, address })
     }
 
     pub async fn run(self) -> Result<(), std::io::Error> {
-        println!("listening on {}", &self.address);
+        tracing::info!("listening on {}", &self.address);
         self.server.await
     }
 }

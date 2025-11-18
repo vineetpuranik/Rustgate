@@ -1,5 +1,5 @@
 use auth_service::services::MockEmailClient;
-use auth_service::utils::DATABASE_URL;
+use auth_service::utils::{init_tracing, DATABASE_URL};
 use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -18,6 +18,8 @@ use auth_service::{
 
 #[tokio::main]
 async fn main() {
+    // Call init_tracing
+    init_tracing();
     let pg_pool = configure_postgresql().await;
     let redis_connection = Arc::new(RwLock::new(configure_redis()));
 

@@ -7,6 +7,9 @@ use crate::{
 };
 
 // Use axum's state extractor to pass in AppState
+// The #[tracing::instrument] attribute macro implements the signup function for tracing.
+// The span is named as Signup, all arguments are skipped from being recorded in the trace and we are capturing errors with Debug formatting if they occur.
+#[tracing::instrument(name = "Signup", skip_all, err(Debug))]
 pub async fn signup(
     State(state): State<AppState>,
     Json(request): Json<SignupRequest>,

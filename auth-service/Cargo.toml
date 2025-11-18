@@ -9,7 +9,7 @@ edition = "2021"
 axum = "0.7.4"
 axum-extra = { version = "0.9.2", features = ["cookie"] }
 tokio = { version = "1.36", features = ["full"] }
-tower-http = { version = "0.5.0", features = ["fs", "cors"] }
+tower-http = { version = "0.5.0", features = ["fs", "cors", "trace"] } # trace feature enables tracing middleware, which integrates with the tracing crate to provide detailed logging and tracing of http requests and responses.
 serde ={ version = "1.0", features = ["derive"]}
 serde_json = "1.0"
 uuid = { version = "1.7.0", features = ["v4", "serde"] }
@@ -24,6 +24,8 @@ sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "migra
 argon2 = { version = "0.5.3", features = ["std"] } # argon2 will be used to hash passwords
 test_helpers = { git = "https://github.com/vineetpuranik/test_helpers.git"}
 redis = { version = "0.25.2", features = ["tokio-comp"] } # Redis library for rust.
+tracing = "0.1.40" # core functionality for managing spans and events
+tracing-subscriber = "0.3.18" # configuration w.r.t how the trace data is collected, processed and exported.
 
 [dev-dependencies]
 reqwest = {version = "0.11.26", default-features = false, features = ["json", "cookies"]}
