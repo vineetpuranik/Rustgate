@@ -7,6 +7,7 @@ use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use axum_extra::extract::CookieJar;
 use serde::Deserialize;
 
+#[tracing::instrument(name = "Verify 2FA", skip_all)]
 pub async fn verify_2fa(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -52,15 +53,15 @@ pub async fn verify_2fa(
     }
 
     // remove 2fa code from the code store after successful authentication
-    if two_fa_code_store.remove_code(&email).await.is_err() {
-        return (jar, Err(AuthAPIError::UnexpectedError));
+    if let Err(e) = two_fa_code_store.remove_code(&email).await {
+        return (jar, Err(AuthAPIError::UnexpectedError(e.into())));
     }
 
     // email, login attemptid, and 2fa are correct
     // as a result, we will update the cookie jar with a new JWT auth cookie
     let auth_cookie = match generate_auth_cookie(&email) {
         Ok(c) => c,
-        Err(_) => return (jar, Err(AuthAPIError::UnexpectedError)),
+        Err(e) => return (jar, Err(AuthAPIError::UnexpectedError(e))),
     };
     let updated_jar = jar.add(auth_cookie);
 
