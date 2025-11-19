@@ -7,6 +7,7 @@ use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
 
+#[tracing::instrument(name = "Login", skip_all)]
 pub async fn login(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -31,7 +32,7 @@ pub async fn login(
         Err(UserStoreError::InvalidCredentials) => {
             return (jar, Err(AuthAPIError::IncorrectCredentials))
         }
-        _ => return (jar, Err(AuthAPIError::UnexpectedError)),
+        Err(e) => return (jar, Err(AuthAPIError::UnexpectedError(e.into()))),
     }
 
     let user = match user_store.get_user(&email).await {
@@ -46,6 +47,7 @@ pub async fn login(
     }
 }
 
+#[tracing::instrument(name = "Handle non-2FA flow", skip_all)]
 async fn handle_no_2fa(
     email: &Email,
     jar: CookieJar,
@@ -57,7 +59,7 @@ async fn handle_no_2fa(
     // If the function call fails return AuthAPIError::UnexpectedError.
     let auth_cookie = match generate_auth_cookie(&email) {
         Ok(c) => c,
-        Err(_) => return (jar, Err(AuthAPIError::UnexpectedError)),
+        Err(e) => return (jar, Err(AuthAPIError::UnexpectedError(e))), // Updated!
     };
 
     let updated_jar = jar.add(auth_cookie);
@@ -68,6 +70,7 @@ async fn handle_no_2fa(
     )
 }
 
+#[tracing::instrument(name = "Handle 2FA flow", skip_all)]
 async fn handle_2fa(
     email: &Email,
     state: &AppState,
@@ -83,26 +86,26 @@ async fn handle_2fa(
     // Store the ID and code in our 2FA code store.
     // Return `AuthAPIError::UnexpectedError` if the operation fails
 
-    if state
+    // Updated!
+    if let Err(e) = state
         .two_fa_code_store
         .write()
         .await
         .add_code(email.clone(), login_attempt_id.clone(), two_fa_code.clone())
         .await
-        .is_err()
     {
-        return (jar, Err(AuthAPIError::UnexpectedError));
+        return (jar, Err(AuthAPIError::UnexpectedError(e.into())));
     }
 
     // TODO: send 2FA code via the email client. Return `AuthAPIError::UnexpectedError` if the operation fails.
     let email_client = state.email_client.read().await;
-    match email_client
+
+    if let Err(e) = email_client
         .send_email(email, "2FA Code", two_fa_code.as_ref())
         .await
     {
-        Ok(()) => {}
-        Err(_) => return (jar, Err(AuthAPIError::UnexpectedError)),
-    };
+        return (jar, Err(AuthAPIError::UnexpectedError(e)));
+    }
 
     // Return a TwoFactorAuthResponse. The message should be "2FA required".
     let two_factor_auth_response = TwoFactorAuthResponse {

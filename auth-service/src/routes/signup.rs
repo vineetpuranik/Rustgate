@@ -9,7 +9,7 @@ use crate::{
 // Use axum's state extractor to pass in AppState
 // The #[tracing::instrument] attribute macro implements the signup function for tracing.
 // The span is named as Signup, all arguments are skipped from being recorded in the trace and we are capturing errors with Debug formatting if they occur.
-#[tracing::instrument(name = "Signup", skip_all, err(Debug))]
+#[tracing::instrument(name = "Signup", skip_all)]
 pub async fn signup(
     State(state): State<AppState>,
     Json(request): Json<SignupRequest>,
@@ -34,7 +34,7 @@ pub async fn signup(
     match user_store.add_user(new_user).await {
         Ok(()) => {}
         Err(UserStoreError::UserAlreadyExists) => return Err(AuthAPIError::UserAlreadyExists),
-        _ => return Err(AuthAPIError::UnexpectedError),
+        Err(e) => return Err(AuthAPIError::UnexpectedError(e.into())),
     };
 
     let response = Json(SignupResponse {

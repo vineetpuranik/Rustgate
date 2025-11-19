@@ -1,16 +1,33 @@
 use std::time::Duration;
 
 use axum::{body::Body, extract::Request, response::Response};
+use color_eyre::eyre::Result;
 use tracing::{Level, Span};
+use tracing_error::ErrorLayer;
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::{fmt, EnvFilter};
 
 // The init_tracing() function sets up tracing by configuring a subscriber that logs trace data in a compact format
 // It captures all events with a severity level for DEBUG or higher.
 // This initialization enables detailed logging for debugging and monitoring auth_service
-pub fn init_tracing() {
-    tracing_subscriber::fmt()
-        .compact()
-        .with_max_level(tracing::Level::DEBUG)
-        .init();
+pub fn init_tracing() -> Result<()> {
+    // Create a formatting layer for tracing output with a compact format
+    let fmt_layer = fmt::layer().compact();
+
+    // Create a filter layer to control the verbosity of logs
+    // Try to get the filter configuration from env variables
+    // If it fails, default to the info log level
+    let filter_layer = EnvFilter::try_from_default_env().or_else(|_| EnvFilter::try_new("info"))?;
+
+    // Build the tracing subscriber registry with the formatting layer,
+    // the filter layer, and the error layer for enhanced error reporting
+    tracing_subscriber::registry()
+        .with(filter_layer) // Add the filter layer to control log verbosity
+        .with(fmt_layer) // Add the formatting layer for compact log output
+        .with(ErrorLayer::default()) // Add the error layer to capture error contexts
+        .init(); // Initialize the tracing subscriber
+
+    Ok(())
 }
 
 // This function creates a new tracing span with a unique request ID for each incoming request.
